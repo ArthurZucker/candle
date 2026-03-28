@@ -157,7 +157,7 @@ impl AlbertEmbeddings {
     fn forward(&self, ids: &Tensor) -> Result<Tensor> {
         let (b, s) = ids.dims2()?;
         let dev = ids.device();
-        let pos = Tensor::arange(0u32, s as u32, dev)?.unsqueeze(0)?.expand((b, s))?;
+        let pos = Tensor::arange(0u32, s as u32, dev)?.unsqueeze(0)?.expand((b, s))?.contiguous()?;
         let tt = Tensor::zeros((b, s), DType::U32, dev)?;
         let emb = (self.word.forward(ids)? + self.position.forward(&pos)? + self.token_type.forward(&tt)?)?;
         emb.apply(&self.layer_norm)
@@ -202,8 +202,8 @@ impl AlbertAttention {
         let q = (project(&self.query)? * self.scale)?;
         let k = project(&self.key)?;
         let v = project(&self.value)?;
-        let attn = candle_nn::ops::softmax_last_dim(&q.matmul(&k.transpose(2, 3)?)?)?;
-        let out = attn.matmul(&v)?.transpose(1, 2)?.reshape((b, s, ()))?.apply(&self.dense)?;
+        let attn = candle_nn::ops::softmax_last_dim(&q.matmul(&k.transpose(2, 3)?.contiguous()?)?)?;
+        let out = attn.matmul(&v)?.transpose(1, 2)?.contiguous()?.reshape((b, s, ()))?.apply(&self.dense)?;
         (xs + out)?.apply(&self.layer_norm)
     }
 }
